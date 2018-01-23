@@ -148,3 +148,18 @@ object RunInConsole {
 
   def saveAbc = saveUser("abc@gov.pl", "dunno")
 }
+
+object RunFromCli extends App {
+
+  import multiple.MultipleAlgebras._
+
+  // import smart-constructors
+  import LoggingOperations._
+  import UserDBOperations._
+  // import hand-made interpreter
+  import AppInterpreters.interpreter
+
+  val result = saveUser("lglo@gov.pl", "12345").foldMap(interpreter)
+  println(result)
+  
+}

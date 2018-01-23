@@ -409,6 +409,47 @@ val appToId: App ~> Id = userDBToId or logToId or wsToId
 val appToFuture: App ~> Future = userDBToFuture or logToFuture or wsToFuture
 ```
 ---
+##.center[Combining Free Algebras #3]
+```scala
+def saveUser(e: Email, p: PasswordHash)
+  (implicit D: UserDBOperations[MyApp], L: LoggingOperations[MyApp])
+: Free[MyApp, UserInsertionResult] = {
+
+  import D._, L._
+
+  info(s"Inserting User with email: '$e'").flatMap { _ =>
+    queryByEmail(e).flatMap {
+      case None =>
+        insert(e, p).flatMap {
+          case Success(id) =>
+            info(s"User with email: '$e' inserted with id: '$id'").map { _ =>
+              UserInserted(id)
+            }
+          case Failure(err) =>
+            error(s"DB failed: '$err'", Some(err)).map { _ =>
+              DBFailure(err)
+            }
+        }
+      case Some(_) =>
+        info(s"User with email: '$e' already exists!").map { _ =>
+          AlreadyExists
+        }
+    }
+  }
+}
+```
+---
+##.center[Combining Free Algebras #3]
+```scala
+// import smart-constructors
+import LoggingOperations._
+import UserDBOperations._
+// import hand-made interpreter
+import AppInterpreters.interpreter
+
+val result = saveUser("lglo@gov.pl", "12345").foldMap(interpreter)
+```
+---
 ##.center[Meet Freestyle!]
 
 * ### http://frees.io
@@ -504,44 +545,8 @@ val us = UserService[UserService.Op]
 us.saveUser("zonk@zonk.pl", "abcd").interpret[Id])
 ```
 ---
-# Boilerplate
-#### Extra types
-```scala
-def insert(e: Email, p: PasswordHash): Future[Try[UserId]]
-```
-```scala
-final case class Insert(e: Email, p: PasswordHash) extends UserDB[Try[UserId]]
-```
-#### Extra lifts
-```scala
-Free.liftM(QueryByEmail(e)).flatMap { ...
-```
-#### Cumbersome interpreter (it's library not language feature)
-```scala
-val userDBToId: UserDB ~> Id = new (UserDB ~> Id) {
-  override def apply[A](fa: UserDB[A]): Id[A] = fa match {
-    case Insert(e, p) =>
-```
----
-# Boilerplate
-#### Combining multiple algebras
-```scala
-type MyApp[A] = EitherK[UserDB, Logging, A]
-```
-#### InjectK thing
-```scala
-class UserDBOperations[F[_]](implicit I: InjectK[UserDB, F]) {
-
-    def insert(e: Email, p: PasswordHash) = Free.inject[UserDB, F](Insert(e, p))
-
-    def queryByEmail(e: Email) = Free.inject[UserDB, F](QueryByEmail(e))
-  }
-```
-#### Combining interpreters
-```scala
-val interpreter: MyApp ~> Id = userDBToId or logToId
-```
-
+class: middle, center
+#Conclusions?
 ---
 class: middle, center
 #Thank you!
